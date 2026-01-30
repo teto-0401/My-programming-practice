@@ -46,9 +46,9 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async updateVmImage(id: number, imagePath: string): Promise<Vm> {
+  async updateVmImage(id: number, imagePath: string, imageFilename?: string): Promise<Vm> {
     const [updated] = await db.update(vms)
-      .set({ imagePath })
+      .set({ imagePath, imageFilename })
       .where(eq(vms.id, id))
       .returning();
     return updated;

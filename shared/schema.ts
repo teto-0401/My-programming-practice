@@ -10,6 +10,7 @@ export const vms = pgTable("vms", {
   name: text("name").notNull().default("My VM"),
   status: text("status").notNull().default("stopped"), // stopped, running, error
   imagePath: text("image_path"), // Path to the uploaded .bin/.iso
+  imageFilename: text("image_filename"), // Original filename to detect extension
   vncPort: integer("vnc_port"),
   createdAt: timestamp("created_at").defaultNow(),
 });

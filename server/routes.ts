@@ -31,23 +31,40 @@ class QemuManager {
   private process: ChildProcess | null = null;
   private currentImage: string | null = null;
 
-  async start(imagePath: string) {
+  async start(imagePath: string, originalFilename?: string | null) {
     if (this.process) {
       throw new Error("VM is already running");
     }
 
-    console.log("Starting QEMU with image:", imagePath);
+    console.log("Starting QEMU with image:", imagePath, "filename:", originalFilename);
     this.currentImage = imagePath;
+
+    // Detect file type from original filename
+    const extension = originalFilename?.split('.').pop()?.toLowerCase() || '';
+    const isISO = extension === 'iso';
+    const isBinOrImg = extension === 'bin' || extension === 'img';
 
     const args = [
       '-m', '2G', 
       '-smp', '2', 
-      '-vnc', '127.0.0.1:0', // Localhost only, we proxy it
+      '-vnc', '127.0.0.1:0',
       '-net', 'nic,model=virtio',
       '-net', 'user',
-      '-drive', `file=${imagePath},format=raw,if=virtio`,
-      '-vga', 'std'
+      '-vga', 'std',
+      '-boot', 'd', // Boot from CD-ROM first, then HDD
     ];
+
+    // Add drive based on file type
+    if (isISO) {
+      // ISO files should be mounted as CD-ROM
+      args.push('-cdrom', imagePath);
+      console.log("Mounting as CD-ROM (ISO)");
+    } else {
+      // BIN/IMG files are bootable disk images
+      args.push('-drive', `file=${imagePath},format=raw,if=virtio`);
+      args.push('-boot', 'c'); // Override to boot from hard drive for bin/img
+      console.log("Mounting as hard drive (BIN/IMG)");
+    }
 
     if (fs.existsSync('/dev/kvm')) {
       args.unshift('-enable-kvm');
@@ -146,6 +163,7 @@ export async function registerRoutes(
 
     const vm = await storage.createOrUpdateVm({
       imagePath: req.file.path,
+      imageFilename: req.file.originalname,
       status: 'stopped'
     });
 
@@ -159,7 +177,7 @@ export async function registerRoutes(
     }
 
     try {
-      await qemu.start(vm.imagePath);
+      await qemu.start(vm.imagePath, vm.imageFilename);
       await storage.updateVmStatus(vm.id, 'running');
       res.json({ success: true, message: "VM started" });
     } catch (e: any) {
