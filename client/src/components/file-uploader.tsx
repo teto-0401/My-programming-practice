@@ -1,13 +1,14 @@
 import { useState, useRef } from "react";
-import { Upload, FileType, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, CheckCircle, Loader2 } from "lucide-react";
 import { useUploadVmImage } from "@/hooks/use-vm";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { Progress } from "@/components/ui/progress";
 
 export function FileUploader({ currentImage }: { currentImage?: string | null }) {
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { mutate: upload, isPending } = useUploadVmImage();
+  const { upload, progress, isUploading } = useUploadVmImage();
   const { toast } = useToast();
 
   const handleDrag = (e: React.DragEvent) => {
@@ -70,6 +71,14 @@ export function FileUploader({ currentImage }: { currentImage?: string | null })
     inputRef.current?.click();
   };
 
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-2">
@@ -77,19 +86,20 @@ export function FileUploader({ currentImage }: { currentImage?: string | null })
         {currentImage && (
           <span className="text-xs font-mono text-primary flex items-center gap-1">
             <CheckCircle className="w-3 h-3" />
-            MOUNTED: {currentImage}
+            MOUNTED
           </span>
         )}
       </div>
 
       <div
+        data-testid="dropzone-upload"
         className={`
           relative w-full h-48 rounded-xl border-2 border-dashed transition-all duration-300
           flex flex-col items-center justify-center cursor-pointer overflow-hidden
           ${dragActive 
             ? "border-primary bg-primary/5 scale-[1.02]" 
             : "border-border hover:border-primary/50 hover:bg-muted/50"}
-          ${isPending ? "pointer-events-none opacity-80" : ""}
+          ${isUploading ? "pointer-events-none opacity-80" : ""}
         `}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
@@ -103,22 +113,31 @@ export function FileUploader({ currentImage }: { currentImage?: string | null })
           className="hidden"
           accept=".bin,.iso,.img"
           onChange={handleChange}
+          data-testid="input-file"
         />
 
         <AnimatePresence mode="wait">
-          {isPending ? (
+          {isUploading ? (
             <motion.div
               key="uploading"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="flex flex-col items-center gap-3"
+              className="flex flex-col items-center gap-4 w-full px-8"
             >
               <div className="relative">
                 <div className="absolute inset-0 rounded-full blur-md bg-primary/20 animate-pulse" />
                 <Loader2 className="w-10 h-10 text-primary animate-spin relative z-10" />
               </div>
-              <p className="text-sm font-medium text-foreground">Uploading disk image...</p>
+              
+              <div className="w-full space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="font-medium text-foreground">Uploading...</span>
+                  <span className="font-mono text-primary font-bold" data-testid="text-upload-progress">{progress}%</span>
+                </div>
+                <Progress value={progress} className="h-3" data-testid="progress-upload" />
+              </div>
+              
               <p className="text-xs text-muted-foreground">This may take a while for large files</p>
             </motion.div>
           ) : (

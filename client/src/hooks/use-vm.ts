@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
-import { type Vm } from "@shared/schema";
+import { useState, useCallback } from "react";
 
 // GET /api/vm
 export function useVm() {
@@ -12,35 +12,70 @@ export function useVm() {
       if (!res.ok) throw new Error("Failed to fetch VM status");
       return api.vm.get.responses[200].parse(await res.json());
     },
-    // Poll every 2 seconds while running to catch status changes
     refetchInterval: (data) => (data?.state?.data?.status === "running" ? 2000 : 5000),
   });
 }
 
-// POST /api/vm/upload
+// POST /api/vm/upload with progress tracking
 export function useUploadVmImage() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
+  const [progress, setProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
 
-      const res = await fetch(api.vm.upload.path, {
-        method: api.vm.upload.method,
-        body: formData,
-        // Content-Type header is set automatically by fetch for FormData
-      });
+  const upload = useCallback((file: File, callbacks?: {
+    onSuccess?: (data: { success: boolean; path: string; filename: string }) => void;
+    onError?: (error: Error) => void;
+  }) => {
+    setIsUploading(true);
+    setProgress(0);
 
-      if (!res.ok) {
-        const error = api.vm.upload.responses[400].parse(await res.json());
-        throw new Error(error.message);
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        setProgress(percent);
       }
-      return api.vm.upload.responses[200].parse(await res.json());
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.vm.get.path] });
-    },
-  });
+    });
+
+    xhr.addEventListener("load", () => {
+      setIsUploading(false);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const data = JSON.parse(xhr.responseText);
+        queryClient.invalidateQueries({ queryKey: [api.vm.get.path] });
+        callbacks?.onSuccess?.(data);
+      } else {
+        try {
+          const error = JSON.parse(xhr.responseText);
+          callbacks?.onError?.(new Error(error.message || "Upload failed"));
+        } catch {
+          callbacks?.onError?.(new Error("Upload failed"));
+        }
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      setIsUploading(false);
+      callbacks?.onError?.(new Error("Network error during upload"));
+    });
+
+    xhr.addEventListener("abort", () => {
+      setIsUploading(false);
+      callbacks?.onError?.(new Error("Upload aborted"));
+    });
+
+    xhr.open(api.vm.upload.method, api.vm.upload.path);
+    xhr.send(formData);
+  }, [queryClient]);
+
+  return {
+    upload,
+    progress,
+    isUploading,
+    resetProgress: () => setProgress(0),
+  };
 }
 
 // POST /api/vm/start
