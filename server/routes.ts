@@ -45,8 +45,8 @@ class QemuManager {
     const isBinOrImg = extension === 'bin' || extension === 'img';
 
     const args = [
-      '-m', '1G', 
-      '-smp', '1',
+      '-m', '2G', 
+      '-smp', '2',
       '-cpu', 'max',
       '-vnc', '127.0.0.1:0',
       '-device', 'usb-ehci',
@@ -102,6 +102,16 @@ class QemuManager {
 }
 
 const qemu = new QemuManager();
+
+// Reset VM status on server start (QEMU process doesn't persist across restarts)
+async function resetVmStatus() {
+  const vm = await storage.getVm();
+  if (vm && vm.status === 'running') {
+    console.log("Resetting VM status from 'running' to 'stopped' (server restart)");
+    await storage.updateVmStatus(vm.id, 'stopped');
+  }
+}
+resetVmStatus();
 
 export async function registerRoutes(
   httpServer: Server,
