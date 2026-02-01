@@ -8,6 +8,7 @@ export interface IStorage {
   createOrUpdateVm(vm: Partial<InsertVm>): Promise<Vm>;
   updateVmStatus(id: number, status: string): Promise<Vm>;
   updateVmImage(id: number, imagePath: string): Promise<Vm>;
+  updateVmSettings(id: number, settings: { ramMb?: number; vramMb?: number }): Promise<Vm>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -49,6 +50,14 @@ export class DatabaseStorage implements IStorage {
   async updateVmImage(id: number, imagePath: string, imageFilename?: string): Promise<Vm> {
     const [updated] = await db.update(vms)
       .set({ imagePath, imageFilename })
+      .where(eq(vms.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateVmSettings(id: number, settings: { ramMb?: number; vramMb?: number }): Promise<Vm> {
+    const [updated] = await db.update(vms)
+      .set(settings)
       .where(eq(vms.id, id))
       .returning();
     return updated;

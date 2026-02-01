@@ -1,8 +1,9 @@
-import { useVm, useStartVm, useStopVm, useSnapshots, useSaveSnapshot, useDeleteSnapshot } from "@/hooks/use-vm";
+import { useState, useEffect } from "react";
+import { useVm, useStartVm, useStopVm, useSnapshots, useSaveSnapshot, useDeleteSnapshot, useUpdateVmSettings } from "@/hooks/use-vm";
 import { FileUploader } from "@/components/file-uploader";
 import { VmDisplay } from "@/components/vm-display";
 import { StatusBadge } from "@/components/status-badge";
-import { Power, Square, Terminal, Cpu, HardDrive, Activity, Save, Trash2, Camera } from "lucide-react";
+import { Power, Square, Terminal, Cpu, HardDrive, Activity, Save, Trash2, Camera, Settings, MemoryStick, Monitor } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,10 +14,32 @@ export default function Home() {
   const { data: snapshots } = useSnapshots();
   const { mutate: saveSnapshot, isPending: isSaving } = useSaveSnapshot();
   const { mutate: deleteSnapshot } = useDeleteSnapshot();
+  const { mutate: updateSettings, isPending: isUpdating } = useUpdateVmSettings();
   const { toast } = useToast();
+
+  const [ramMb, setRamMb] = useState(512);
+  const [vramMb, setVramMb] = useState(16);
+
+  useEffect(() => {
+    if (vm) {
+      setRamMb(vm.ramMb);
+      setVramMb(vm.vramMb);
+    }
+  }, [vm?.ramMb, vm?.vramMb]);
 
   const isRunning = vm?.status === "running";
   const hasImage = !!vm?.imagePath;
+
+  const handleSaveSettings = () => {
+    updateSettings({ ramMb, vramMb }, {
+      onSuccess: () => {
+        toast({ title: "Settings Saved", description: `RAM: ${ramMb}MB, VRAM: ${vramMb}MB` });
+      },
+      onError: (e) => {
+        toast({ title: "Failed", description: e.message, variant: "destructive" });
+      },
+    });
+  };
 
   const handleSaveSnapshot = () => {
     saveSnapshot(undefined, {
@@ -180,6 +203,88 @@ export default function Home() {
               </h2>
               
               <FileUploader currentImage={vm?.imagePath} />
+            </motion.div>
+
+            {/* RAM/VRAM Settings Card */}
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.15 }}
+              className="bg-card rounded-2xl border border-border p-6 shadow-xl"
+            >
+              <h2 className="text-lg font-display font-bold mb-4 flex items-center gap-2">
+                <Settings className="w-5 h-5 text-primary" />
+                HARDWARE CONFIG
+              </h2>
+
+              <div className="space-y-4">
+                {/* RAM Setting */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-sm font-mono">
+                      <MemoryStick className="w-4 h-4 text-muted-foreground" />
+                      RAM (MB)
+                    </label>
+                    <span className="text-sm font-mono text-primary">{ramMb} MB</span>
+                  </div>
+                  <select
+                    value={ramMb}
+                    onChange={(e) => setRamMb(Number(e.target.value))}
+                    disabled={isRunning}
+                    data-testid="select-ram"
+                    className="w-full p-2 rounded-lg bg-muted/30 border border-border text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                  >
+                    <option value={256}>256 MB</option>
+                    <option value={512}>512 MB</option>
+                    <option value={1024}>1024 MB (1 GB)</option>
+                    <option value={2048}>2048 MB (2 GB)</option>
+                    <option value={4096}>4096 MB (4 GB)</option>
+                  </select>
+                </div>
+
+                {/* VRAM Setting */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-sm font-mono">
+                      <Monitor className="w-4 h-4 text-muted-foreground" />
+                      VRAM (MB)
+                    </label>
+                    <span className="text-sm font-mono text-accent">{vramMb} MB</span>
+                  </div>
+                  <select
+                    value={vramMb}
+                    onChange={(e) => setVramMb(Number(e.target.value))}
+                    disabled={isRunning}
+                    data-testid="select-vram"
+                    className="w-full p-2 rounded-lg bg-muted/30 border border-border text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                  >
+                    <option value={8}>8 MB (Low)</option>
+                    <option value={16}>16 MB (Default)</option>
+                    <option value={32}>32 MB</option>
+                    <option value={64}>64 MB</option>
+                    <option value={128}>128 MB</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={handleSaveSettings}
+                  disabled={isRunning || isUpdating}
+                  data-testid="button-save-settings"
+                  className={`
+                    w-full flex items-center justify-center gap-2 rounded-xl p-3 border transition-all duration-300
+                    ${isRunning 
+                      ? "opacity-50 cursor-not-allowed border-border bg-muted/20" 
+                      : "border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary"}
+                  `}
+                >
+                  <Save className="w-5 h-5" />
+                  <span className="font-bold text-sm">{isUpdating ? "SAVING..." : "APPLY"}</span>
+                </button>
+
+                {isRunning && (
+                  <p className="text-xs text-muted-foreground text-center">Stop VM to change settings</p>
+                )}
+              </div>
             </motion.div>
 
             {/* Snapshots Card */}

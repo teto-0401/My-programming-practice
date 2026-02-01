@@ -65,11 +65,11 @@ export function VmDisplay({ isRunning }: VmDisplayProps) {
         </div>
       </div>
 
-      {/* VNC Iframe */}
+      {/* VNC Iframe - Optimized for FPS */}
       <div className="flex-1 relative bg-black">
         <iframe
           key={iframeKey}
-          src="/novnc/vnc.html?autoconnect=true&reconnect=true"
+          src="/novnc/vnc.html?autoconnect=true&reconnect=true&resize=scale&quality=5&compression=9&show_dot=true&logging=warn"
           className="absolute inset-0 w-full h-full border-0"
           title="VM Display"
           allow="fullscreen"

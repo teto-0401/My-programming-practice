@@ -39,12 +39,13 @@ class QemuManager {
   private monitorSocket: net.Socket | null = null;
   private qmpSocket: net.Socket | null = null;
 
-  async start(imagePath: string, originalFilename?: string | null) {
+  async start(imagePath: string, originalFilename?: string | null, ramMb: number = 512, vramMb: number = 16) {
     if (this.process) {
       throw new Error("VM is already running");
     }
 
     console.log("Starting QEMU with image:", imagePath, "filename:", originalFilename);
+    console.log(`Config: RAM=${ramMb}MB, VRAM=${vramMb}MB`);
     this.currentImage = imagePath;
 
     // Detect file type from original filename
@@ -52,14 +53,18 @@ class QemuManager {
     const isISO = extension === 'iso';
     const isBinOrImg = extension === 'bin' || extension === 'img';
 
+    // FPS Optimization Notes:
+    // - Lower resolution VGA (cirrus) uses less CPU for rendering
+    // - Smaller VRAM reduces memory bandwidth overhead
+    // - VNC with low resolution means less data to encode/transmit
     const args = [
-      '-m', '2G', 
+      '-m', `${ramMb}M`, // Explicit RAM setting
       '-smp', '2',
       '-cpu', 'max',
-      '-vnc', '127.0.0.1:0',
+      '-vnc', '127.0.0.1:0', // Plain ws, no encryption
       '-device', 'usb-ehci',
-      '-device', 'usb-tablet', // Enables absolute mouse positioning
-      '-vga', 'std',
+      '-device', 'usb-tablet', // Absolute mouse positioning
+      '-device', `VGA,vgamem_mb=${vramMb}`, // Explicit VRAM setting with standard VGA
       '-qmp', 'tcp:127.0.0.1:4444,server,nowait', // QMP for machine control
     ];
 
@@ -300,9 +305,35 @@ export async function registerRoutes(
     }
 
     try {
-      await qemu.start(vm.imagePath, vm.imageFilename);
+      await qemu.start(vm.imagePath, vm.imageFilename, vm.ramMb, vm.vramMb);
       await storage.updateVmStatus(vm.id, 'running');
       res.json({ success: true, message: "VM started" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Update VM settings (RAM/VRAM)
+  app.patch('/api/vm/settings', async (req, res) => {
+    const { ramMb, vramMb } = req.body;
+    
+    if (qemu.isRunning()) {
+      return res.status(400).json({ message: "Stop VM before changing settings" });
+    }
+
+    try {
+      const vm = await storage.getVm();
+      if (!vm) {
+        return res.status(404).json({ message: "No VM found" });
+      }
+
+      await storage.updateVmSettings(vm.id, { 
+        ramMb: ramMb ?? vm.ramMb, 
+        vramMb: vramMb ?? vm.vramMb 
+      });
+      
+      const updated = await storage.getVm();
+      res.json(updated);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

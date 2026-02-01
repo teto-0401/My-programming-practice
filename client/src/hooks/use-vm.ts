@@ -174,3 +174,26 @@ export function useDeleteSnapshot() {
     },
   });
 }
+
+// PATCH /api/vm/settings
+export function useUpdateVmSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (settings: { ramMb?: number; vramMb?: number }) => {
+      const res = await fetch('/api/vm/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.vm.get.path] });
+    },
+  });
+}
