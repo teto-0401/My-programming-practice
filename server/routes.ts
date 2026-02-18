@@ -290,7 +290,9 @@ async function resetVmStatus() {
     await storage.updateVmStatus(vm.id, 'stopped');
   }
 }
-resetVmStatus();
+resetVmStatus().catch((err) => {
+  console.error("Failed to reset VM status on startup:", err);
+});
 
 export async function registerRoutes(
   httpServer: Server,
