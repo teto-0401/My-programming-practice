@@ -8,15 +8,15 @@ export function StatusBadge({ status }: StatusBadgeProps) {
   const isRunning = status === "running";
   const isError = status === "error";
 
-  let colorClass = "text-muted-foreground bg-muted";
+  let colorClass = "text-muted-foreground bg-muted border-border";
   let dotClass = "fill-muted-foreground";
 
   if (isRunning) {
-    colorClass = "text-green-500 bg-green-500/10 border-green-500/20";
-    dotClass = "fill-green-500 animate-pulse";
+    colorClass = "text-foreground bg-muted border-border";
+    dotClass = "fill-foreground animate-pulse";
   } else if (isError) {
-    colorClass = "text-red-500 bg-red-500/10 border-red-500/20";
-    dotClass = "fill-red-500";
+    colorClass = "text-foreground bg-muted border-border";
+    dotClass = "fill-foreground";
   }
 
   return (

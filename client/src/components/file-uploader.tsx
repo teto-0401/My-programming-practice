@@ -88,7 +88,7 @@ export function FileUploader({ currentImage }: { currentImage?: string | null })
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Disk Image</h3>
         {currentImage && (
-          <span className="text-xs font-mono text-primary flex items-center gap-1">
+          <span className="text-xs font-mono text-foreground flex items-center gap-1">
             <CheckCircle className="w-3 h-3" />
             MOUNTED
           </span>
@@ -101,8 +101,8 @@ export function FileUploader({ currentImage }: { currentImage?: string | null })
           relative w-full h-48 rounded-xl border-2 border-dashed transition-all duration-300
           flex flex-col items-center justify-center cursor-pointer overflow-hidden
           ${dragActive 
-            ? "border-primary bg-primary/5 scale-[1.02]" 
-            : "border-border hover:border-primary/50 hover:bg-muted/50"}
+            ? "border-foreground/30 bg-muted/60 scale-[1.02]" 
+            : "border-border hover:border-foreground/30 hover:bg-muted/50"}
           ${isUploading ? "pointer-events-none opacity-80" : ""}
         `}
         onDragEnter={handleDrag}
@@ -130,14 +130,14 @@ export function FileUploader({ currentImage }: { currentImage?: string | null })
               className="flex flex-col items-center gap-4 w-full px-8"
             >
               <div className="relative">
-                <div className="absolute inset-0 rounded-full blur-md bg-primary/20 animate-pulse" />
-                <Loader2 className="w-10 h-10 text-primary animate-spin relative z-10" />
+                <div className="absolute inset-0 rounded-full blur-md bg-muted animate-pulse" />
+                <Loader2 className="w-10 h-10 text-foreground animate-spin relative z-10" />
               </div>
               
               <div className="w-full space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <span className="font-medium text-foreground">Uploading...</span>
-                  <span className="font-mono text-primary font-bold" data-testid="text-upload-progress">{progress}%</span>
+                  <span className="font-mono text-foreground font-bold" data-testid="text-upload-progress">{progress}%</span>
                 </div>
                 <Progress value={progress} className="h-3" data-testid="progress-upload" />
               </div>
@@ -152,8 +152,8 @@ export function FileUploader({ currentImage }: { currentImage?: string | null })
               exit={{ opacity: 0, y: -10 }}
               className="flex flex-col items-center gap-3 text-center p-6"
             >
-              <div className={`p-4 rounded-full bg-muted transition-colors ${dragActive ? 'bg-primary/20' : ''}`}>
-                <Upload className={`w-8 h-8 ${dragActive ? 'text-primary' : 'text-muted-foreground'}`} />
+              <div className={`p-4 rounded-full bg-muted transition-colors ${dragActive ? 'bg-muted/80' : ''}`}>
+                <Upload className={`w-8 h-8 ${dragActive ? 'text-foreground' : 'text-muted-foreground'}`} />
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">
@@ -168,8 +168,8 @@ export function FileUploader({ currentImage }: { currentImage?: string | null })
         </AnimatePresence>
 
         {dragActive && (
-          <div className="absolute inset-0 bg-primary/10 backdrop-blur-[1px] flex items-center justify-center">
-            <p className="text-lg font-bold text-primary animate-pulse">DROP TO UPLOAD</p>
+          <div className="absolute inset-0 bg-muted/70 backdrop-blur-[1px] flex items-center justify-center">
+            <p className="text-lg font-bold text-foreground animate-pulse">DROP TO UPLOAD</p>
           </div>
         )}
       </div>
