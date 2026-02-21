@@ -4,14 +4,14 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["qemu", "socat", "novnc", "unzip", "gh"]
+packages = ["qemu", "socat", "novnc", "unzip", "gh", "iputils"]
 
 [[ports]]
-localPort = 5001
+localPort = 5000
 externalPort = 80
 
 [env]
-PORT = "5001"
+PORT = "5000"
 
 [deployment]
 deploymentTarget = "autoscale"

@@ -39,3 +39,21 @@ QEMU / noVNC based virtual OS simulator with a Node.js + Express backend, Vite +
 ```
 curl -fsSL https://raw.githubusercontent.com/render-oss/cli/refs/heads/main/bin/install.sh | sh
 ```
+
+## Workflow: Status + Push
+- Status updates: Record current progress and decisions in this `README.md` under the `Status` section each time work changes.
+- Also record that we are intentionally writing each change here (per user request).
+- Push target: Use the GitHub repo below when pushing changes.
+
+```
+https://github.com/teto-0401/My-programming-practice
+```
+
+## Status
+- 2026-02-21: Project context noted. README updated with status/push workflow.
+- 2026-02-21: `dev` run showed DB error `relation "vm_images" does not exist` on `/api/vm/images`, and QEMU failed to open ISO at `/app/uploads/TinyCore-16.1.iso` (file missing). API reported success but VM stopped immediately.
+- 2026-02-21: Vite HMR websocket failed to connect in Replit-style URL. Repeated DB failures including `relation "vm_images" does not exist` and later `Connection terminated unexpectedly` on `/api/vm` and `/api/vm/images`.
+- 2026-02-21: Switched to a new DB after suspend issue. `npm run db:push` fails with `Connection terminated unexpectedly` even with `?sslmode=require` in `DATABASE_URL`.
+- 2026-02-21: `drizzle-kit push` completed using create-table selections. App now creates `vms` and `vm_images`, `GET /api/vm` and `GET /api/vm/images` return 200 initially. However, intermittent `Connection terminated unexpectedly` from Postgres causes `/api/vm` 500s, image DB persistence failures, and `POST /api/vm/start` 500. Vite HMR websocket still fails in Replit-style URL. Recording each change in this Status section per user request.
+- 2026-02-21: Client polling adjusted to stop refetching `/api/vm` on error (avoid repeated reload on 500) and added verbose client-side API logs across VM hooks for clearer diagnostics.
+- 2026-02-21: Observed `Uncaught exception: Error: Connection terminated unexpectedly` from `pg` client; added Postgres pool error handler and enabled keepalive to avoid process crash on idle client errors.

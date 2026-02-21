@@ -14,5 +14,10 @@ if (!process.env.DATABASE_URL) {
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
+  keepAlive: true,
+});
+
+pool.on("error", (err) => {
+  console.error("Postgres pool error (idle client):", err);
 });
 export const db = drizzle(pool, { schema });

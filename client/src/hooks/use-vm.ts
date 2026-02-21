@@ -2,17 +2,54 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { useState, useCallback } from "react";
 
+type VmLogMeta = Record<string, unknown>;
+
+function logVm(event: string, meta?: VmLogMeta) {
+  const timestamp = new Date().toISOString();
+  if (meta) {
+    console.info(`[vm-client] ${timestamp} ${event}`, meta);
+  } else {
+    console.info(`[vm-client] ${timestamp} ${event}`);
+  }
+}
+
+async function readBodySafe(res: Response) {
+  const cloned = res.clone();
+  try {
+    return { json: await cloned.json(), text: null as string | null };
+  } catch {
+    try {
+      return { json: null as unknown, text: await cloned.text() };
+    } catch {
+      return { json: null as unknown, text: null as string | null };
+    }
+  }
+}
+
 // GET /api/vm
 export function useVm() {
   return useQuery({
     queryKey: [api.vm.get.path],
     queryFn: async () => {
+      const startedAt = performance.now();
       const res = await fetch(api.vm.get.path);
+      const durationMs = Math.round(performance.now() - startedAt);
+      const body = await readBodySafe(res);
+      logVm("GET /api/vm", {
+        status: res.status,
+        ok: res.ok,
+        durationMs,
+        body: body.json ?? body.text,
+      });
       if (res.status === 404) return null;
       if (!res.ok) throw new Error("Failed to fetch VM status");
-      return api.vm.get.responses[200].parse(await res.json());
+      return api.vm.get.responses[200].parse(body.json);
     },
-    refetchInterval: (data) => (data?.state?.data?.status === "running" ? 2000 : 5000),
+    retry: false,
+    refetchInterval: (query) => {
+      if (query.state.status === "error") return false;
+      return query.state.data?.status === "running" ? 2000 : 5000;
+    },
   });
 }
 
@@ -44,13 +81,23 @@ export function useUploadVmImage() {
       setIsUploading(false);
       if (xhr.status >= 200 && xhr.status < 300) {
         const data = JSON.parse(xhr.responseText);
+        logVm("POST /api/vm/upload success", {
+          status: xhr.status,
+          bytes: xhr.responseText?.length ?? 0,
+          filename: data?.filename,
+        });
         queryClient.invalidateQueries({ queryKey: [api.vm.get.path] });
         callbacks?.onSuccess?.(data);
       } else {
         try {
           const error = JSON.parse(xhr.responseText);
+          logVm("POST /api/vm/upload error", {
+            status: xhr.status,
+            message: error?.message ?? "Upload failed",
+          });
           callbacks?.onError?.(new Error(error.message || "Upload failed"));
         } catch {
+          logVm("POST /api/vm/upload error", { status: xhr.status });
           callbacks?.onError?.(new Error("Upload failed"));
         }
       }
@@ -58,11 +105,13 @@ export function useUploadVmImage() {
 
     xhr.addEventListener("error", () => {
       setIsUploading(false);
+      logVm("POST /api/vm/upload network error");
       callbacks?.onError?.(new Error("Network error during upload"));
     });
 
     xhr.addEventListener("abort", () => {
       setIsUploading(false);
+      logVm("POST /api/vm/upload aborted");
       callbacks?.onError?.(new Error("Upload aborted"));
     });
 
@@ -83,19 +132,31 @@ export function useStartVm() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
+      const startedAt = performance.now();
       const res = await fetch(api.vm.start.path, {
         method: api.vm.start.method,
         headers: { "Content-Type": "application/json" },
       });
+      const durationMs = Math.round(performance.now() - startedAt);
+      const body = await readBodySafe(res);
+      logVm("POST /api/vm/start", {
+        status: res.status,
+        ok: res.ok,
+        durationMs,
+        body: body.json ?? body.text,
+      });
 
       if (!res.ok) {
-        const error = api.vm.start.responses[400].parse(await res.json());
+        const error = api.vm.start.responses[400].parse(body.json);
         throw new Error(error.message);
       }
-      return api.vm.start.responses[200].parse(await res.json());
+      return api.vm.start.responses[200].parse(body.json);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.vm.get.path] });
+    },
+    onError: (error) => {
+      logVm("POST /api/vm/start failed", { message: (error as Error).message });
     },
   });
 }
@@ -105,19 +166,31 @@ export function useStopVm() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
+      const startedAt = performance.now();
       const res = await fetch(api.vm.stop.path, {
         method: api.vm.stop.method,
         headers: { "Content-Type": "application/json" },
       });
+      const durationMs = Math.round(performance.now() - startedAt);
+      const body = await readBodySafe(res);
+      logVm("POST /api/vm/stop", {
+        status: res.status,
+        ok: res.ok,
+        durationMs,
+        body: body.json ?? body.text,
+      });
 
       if (!res.ok) {
-        const error = api.vm.stop.responses[400].parse(await res.json());
+        const error = api.vm.stop.responses[400].parse(body.json);
         throw new Error(error.message);
       }
-      return api.vm.stop.responses[200].parse(await res.json());
+      return api.vm.stop.responses[200].parse(body.json);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.vm.get.path] });
+    },
+    onError: (error) => {
+      logVm("POST /api/vm/stop failed", { message: (error as Error).message });
     },
   });
 }
@@ -127,10 +200,20 @@ export function useSnapshots() {
   return useQuery({
     queryKey: [api.vm.listSnapshots.path],
     queryFn: async () => {
+      const startedAt = performance.now();
       const res = await fetch(api.vm.listSnapshots.path);
+      const durationMs = Math.round(performance.now() - startedAt);
+      const body = await readBodySafe(res);
+      logVm("GET /api/vm/snapshots", {
+        status: res.status,
+        ok: res.ok,
+        durationMs,
+        body: body.json ?? body.text,
+      });
       if (!res.ok) throw new Error("Failed to fetch snapshots");
-      return res.json() as Promise<Array<{ name: string; createdAt: string; size: number }>>;
+      return body.json as Array<{ name: string; createdAt: string; size: number }>;
     },
+    retry: false,
   });
 }
 
@@ -139,10 +222,20 @@ export function useStoredImages() {
   return useQuery({
     queryKey: [api.vm.listImages.path],
     queryFn: async () => {
+      const startedAt = performance.now();
       const res = await fetch(api.vm.listImages.path);
+      const durationMs = Math.round(performance.now() - startedAt);
+      const body = await readBodySafe(res);
+      logVm("GET /api/vm/images", {
+        status: res.status,
+        ok: res.ok,
+        durationMs,
+        body: body.json ?? body.text,
+      });
       if (!res.ok) throw new Error("Failed to fetch stored images");
-      return api.vm.listImages.responses[200].parse(await res.json());
+      return api.vm.listImages.responses[200].parse(body.json);
     },
+    retry: false,
   });
 }
 
@@ -151,22 +244,35 @@ export function useMountStoredImage() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
+      const startedAt = performance.now();
       const res = await fetch(`/api/vm/images/${id}/mount`, {
         method: api.vm.mountImage.method,
       });
+      const durationMs = Math.round(performance.now() - startedAt);
+      const body = await readBodySafe(res);
+      logVm("POST /api/vm/images/:id/mount", {
+        id,
+        status: res.status,
+        ok: res.ok,
+        durationMs,
+        body: body.json ?? body.text,
+      });
       if (res.status === 404) {
-        const error = api.vm.mountImage.responses[404].parse(await res.json());
+        const error = api.vm.mountImage.responses[404].parse(body.json);
         throw new Error(error.message);
       }
       if (!res.ok) {
-        const error = api.vm.mountImage.responses[400].parse(await res.json());
+        const error = api.vm.mountImage.responses[400].parse(body.json);
         throw new Error(error.message);
       }
-      return api.vm.mountImage.responses[200].parse(await res.json());
+      return api.vm.mountImage.responses[200].parse(body.json);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.vm.get.path] });
       queryClient.invalidateQueries({ queryKey: [api.vm.listImages.path] });
+    },
+    onError: (error) => {
+      logVm("POST /api/vm/images/:id/mount failed", { message: (error as Error).message });
     },
   });
 }
@@ -175,19 +281,31 @@ export function useSaveSnapshot() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
+      const startedAt = performance.now();
       const res = await fetch(api.vm.saveSnapshot.path, {
         method: api.vm.saveSnapshot.method,
         headers: { "Content-Type": "application/json" },
       });
+      const durationMs = Math.round(performance.now() - startedAt);
+      const body = await readBodySafe(res);
+      logVm("POST /api/vm/snapshot/save", {
+        status: res.status,
+        ok: res.ok,
+        durationMs,
+        body: body.json ?? body.text,
+      });
 
       if (!res.ok) {
-        const error = await res.json();
+        const error = body.json as { message?: string } | null;
         throw new Error(error.message);
       }
-      return res.json() as Promise<{ success: boolean; name: string; message: string }>;
+      return body.json as { success: boolean; name: string; message: string };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.vm.listSnapshots.path] });
+    },
+    onError: (error) => {
+      logVm("POST /api/vm/snapshot/save failed", { message: (error as Error).message });
     },
   });
 }
@@ -196,18 +314,31 @@ export function useDeleteSnapshot() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (name: string) => {
+      const startedAt = performance.now();
       const res = await fetch(`/api/vm/snapshot/${name}`, {
         method: 'DELETE',
       });
+      const durationMs = Math.round(performance.now() - startedAt);
+      const body = await readBodySafe(res);
+      logVm("DELETE /api/vm/snapshot/:name", {
+        name,
+        status: res.status,
+        ok: res.ok,
+        durationMs,
+        body: body.json ?? body.text,
+      });
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message);
+        const error = body.json as { message?: string } | null;
+        throw new Error(error?.message ?? "Failed to delete snapshot");
       }
-      return res.json() as Promise<{ success: boolean; message: string }>;
+      return body.json as { success: boolean; message: string };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.vm.listSnapshots.path] });
+    },
+    onError: (error) => {
+      logVm("DELETE /api/vm/snapshot/:name failed", { message: (error as Error).message });
     },
   });
 }
@@ -217,20 +348,33 @@ export function useUpdateVmSettings() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (settings: { ramMb?: number; vramMb?: number }) => {
+      const startedAt = performance.now();
       const res = await fetch('/api/vm/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       });
+      const durationMs = Math.round(performance.now() - startedAt);
+      const body = await readBodySafe(res);
+      logVm("PATCH /api/vm/settings", {
+        status: res.status,
+        ok: res.ok,
+        durationMs,
+        body: body.json ?? body.text,
+        settings,
+      });
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message);
+        const error = body.json as { message?: string } | null;
+        throw new Error(error?.message ?? "Failed to update VM settings");
       }
-      return res.json();
+      return body.json as unknown;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.vm.get.path] });
+    },
+    onError: (error) => {
+      logVm("PATCH /api/vm/settings failed", { message: (error as Error).message });
     },
   });
 }
@@ -240,20 +384,33 @@ export function useStartFromSnapshot() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (snapshotName: string) => {
+      const startedAt = performance.now();
       const res = await fetch('/api/vm/start-from-snapshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ snapshotName }),
       });
+      const durationMs = Math.round(performance.now() - startedAt);
+      const body = await readBodySafe(res);
+      logVm("POST /api/vm/start-from-snapshot", {
+        status: res.status,
+        ok: res.ok,
+        durationMs,
+        body: body.json ?? body.text,
+        snapshotName,
+      });
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message);
+        const error = body.json as { message?: string } | null;
+        throw new Error(error?.message ?? "Failed to start from snapshot");
       }
-      return res.json() as Promise<{ success: boolean; message: string }>;
+      return body.json as { success: boolean; message: string };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.vm.get.path] });
+    },
+    onError: (error) => {
+      logVm("POST /api/vm/start-from-snapshot failed", { message: (error as Error).message });
     },
   });
 }
